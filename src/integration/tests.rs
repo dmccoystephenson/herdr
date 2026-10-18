@@ -2889,6 +2889,45 @@ fn uninstall_opencode_removes_plugins_when_tui_config_is_invalid() {
 }
 
 #[test]
+fn install_opencode_uses_xdg_config_home_over_home_config() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let home = base.join("home");
+    let home_opencode_dir = home.join(".config/opencode");
+    let xdg_config = base.join("xdg");
+    let xdg_opencode_dir = xdg_config.join("opencode");
+    fs::create_dir_all(&home_opencode_dir).unwrap();
+    fs::create_dir_all(&xdg_opencode_dir).unwrap();
+    std::env::set_var("HOME", &home);
+    std::env::set_var("XDG_CONFIG_HOME", &xdg_config);
+
+    let installed = install_opencode().unwrap();
+
+    assert_eq!(
+        installed.plugin_path,
+        xdg_opencode_dir
+            .join("plugins")
+            .join(OPENCODE_PLUGIN_INSTALL_NAME)
+    );
+    assert_eq!(
+        installed.tui_plugin_path,
+        xdg_opencode_dir.join(OPENCODE_TUI_PLUGIN_INSTALL_NAME)
+    );
+    assert_eq!(
+        installed.tui_config_path,
+        xdg_opencode_dir.join("tui.jsonc")
+    );
+    assert!(
+        fs::read_dir(&home_opencode_dir).unwrap().next().is_none(),
+        "install must not write into ~/.config/opencode when XDG_CONFIG_HOME is set"
+    );
+
+    clear_integration_path_env();
+    std::env::remove_var("HOME");
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
 fn install_opencode_errors_when_config_dir_missing() {
     let _lock = integration_env_lock();
     let base = unique_base();

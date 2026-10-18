@@ -124,6 +124,12 @@ pub(crate) fn expand_tilde_path(path: PathBuf) -> io::Result<PathBuf> {
 }
 
 pub(crate) fn opencode_dir() -> io::Result<PathBuf> {
+    // OpenCode resolves its config home through XDG on every platform,
+    // falling back to ~/.config when XDG_CONFIG_HOME is unset.
+    if let Some(value) = std::env::var_os("XDG_CONFIG_HOME").filter(|value| !value.is_empty()) {
+        return expand_tilde_path(PathBuf::from(value)).map(|path| path.join("opencode"));
+    }
+
     Ok(home_dir()?.join(".config/opencode"))
 }
 
@@ -264,6 +270,34 @@ pub(crate) fn integration_env_lock() -> IntegrationEnvLock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opencode_dir_defaults_to_home_config() {
+        let _lock = integration_env_lock();
+        let original = std::env::var_os("XDG_CONFIG_HOME");
+        std::env::remove_var("XDG_CONFIG_HOME");
+        let expected = home_dir().unwrap().join(".config/opencode");
+        assert_eq!(opencode_dir().unwrap(), expected);
+        std::env::set_var("XDG_CONFIG_HOME", "");
+        assert_eq!(opencode_dir().unwrap(), expected);
+        match original {
+            Some(value) => std::env::set_var("XDG_CONFIG_HOME", value),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
+        }
+    }
+
+    #[test]
+    fn opencode_dir_honors_xdg_config_home() {
+        let _lock = integration_env_lock();
+        let original = std::env::var_os("XDG_CONFIG_HOME");
+        let xdg = std::env::temp_dir().join("herdr-xdg-config");
+        std::env::set_var("XDG_CONFIG_HOME", &xdg);
+        assert_eq!(opencode_dir().unwrap(), xdg.join("opencode"));
+        match original {
+            Some(value) => std::env::set_var("XDG_CONFIG_HOME", value),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
+        }
+    }
 
     #[test]
     fn opencode_state_dir_defaults_to_local_state() {
