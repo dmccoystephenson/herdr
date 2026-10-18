@@ -2913,7 +2913,10 @@ fn install_opencode_uses_xdg_config_home_over_home_config() {
         installed.tui_plugin_path,
         xdg_opencode_dir.join(OPENCODE_TUI_PLUGIN_INSTALL_NAME)
     );
-    assert_eq!(installed.tui_config_path, xdg_opencode_dir.join("tui.jsonc"));
+    assert_eq!(
+        installed.tui_config_path,
+        xdg_opencode_dir.join("tui.jsonc")
+    );
     assert!(
         fs::read_dir(&home_opencode_dir).unwrap().next().is_none(),
         "install must not write into ~/.config/opencode when XDG_CONFIG_HOME is set"
