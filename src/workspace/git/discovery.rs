@@ -52,7 +52,10 @@ fn cwd_is_canonical_home(cwd: &Path, home: &Path) -> bool {
     let mut cache = CANONICAL_HOME
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if cache.as_ref().is_none_or(|(cached_home, _)| cached_home != home) {
+    if cache
+        .as_ref()
+        .is_none_or(|(cached_home, _)| cached_home != home)
+    {
         *cache = Some((home.to_path_buf(), std::fs::canonicalize(home).ok()));
     }
     cache
