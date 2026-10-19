@@ -1,5 +1,6 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 const MAX_GIT_REF_FILE_BYTES: usize = 64 * 1024;
 
@@ -30,7 +31,7 @@ pub fn derive_label_from_cwd(cwd: &Path) -> String {
 pub fn fallback_label_from_cwd(cwd: &Path) -> String {
     if let Ok(home) = std::env::var("HOME") {
         let home = Path::new(&home);
-        if cwd == home {
+        if cwd == home || cwd_is_canonical_home(cwd, home) {
             return "~".to_string();
         }
     }
@@ -40,6 +41,24 @@ pub fn fallback_label_from_cwd(cwd: &Path) -> String {
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .unwrap_or_else(|| cwd.display().to_string())
+}
+
+/// Pane cwds come from the OS with symlinks resolved, while `HOME` can name
+/// the same directory through a symlink. The canonical home is cached per
+/// `HOME` value, including a failed lookup, so callers on view paths do not
+/// touch the filesystem on every label.
+fn cwd_is_canonical_home(cwd: &Path, home: &Path) -> bool {
+    static CANONICAL_HOME: Mutex<Option<(PathBuf, Option<PathBuf>)>> = Mutex::new(None);
+    let mut cache = CANONICAL_HOME
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if cache.as_ref().is_none_or(|(cached_home, _)| cached_home != home) {
+        *cache = Some((home.to_path_buf(), std::fs::canonicalize(home).ok()));
+    }
+    cache
+        .as_ref()
+        .and_then(|(_, canonical)| canonical.as_deref())
+        .is_some_and(|canonical| canonical == cwd)
 }
 
 pub fn git_worktree_info(cwd: &Path) -> Option<GitWorktreeInfo> {
@@ -798,6 +817,30 @@ mod tests {
         assert_eq!(derive_label_from_cwd(Path::new(&root)), label);
 
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_cwd_matches_home_reached_through_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let base = temp_test_dir("symlinked-home");
+        let real_home = base.join("volume1/homes/user");
+        let other = base.join("volume1/homes/other");
+        std::fs::create_dir_all(&real_home).unwrap();
+        std::fs::create_dir_all(&other).unwrap();
+        std::fs::create_dir_all(base.join("services")).unwrap();
+        symlink(base.join("volume1/homes"), base.join("services/homes")).unwrap();
+        let linked_home = base.join("services/homes/user");
+        let canonical_home = std::fs::canonicalize(&real_home).unwrap();
+        let canonical_other = std::fs::canonicalize(&other).unwrap();
+
+        let home_matches = cwd_is_canonical_home(&canonical_home, &linked_home);
+        let other_matches = cwd_is_canonical_home(&canonical_other, &linked_home);
+        std::fs::remove_dir_all(base).unwrap();
+
+        assert!(home_matches, "the resolved home must label as home");
+        assert!(!other_matches, "a sibling of the resolved home is not home");
     }
 
     #[test]
