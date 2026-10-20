@@ -956,7 +956,8 @@ fn help_overlay_wraps_only_the_row_of_a_shortcut_wider_than_the_panel() {
 
     for (key, label) in [("ctrl+b", "prefix mode"), ("prefix+q", "detach")] {
         assert!(
-            rows.iter().any(|row| row.contains(key) && row.contains(label)),
+            rows.iter()
+                .any(|row| row.contains(key) && row.contains(label)),
             "{key} and {label} should share a row:\n{}",
             rows.join("\n")
         );
