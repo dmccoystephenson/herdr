@@ -1054,6 +1054,7 @@ fn help_lines(
     keybinds: &LiveKeybindConfig,
     query: &str,
     palette: &Palette,
+    text_width: usize,
 ) -> Vec<(usize, ratatui::text::Line<'static>)> {
     use ratatui::text::{Line, Span};
 
@@ -1061,9 +1062,20 @@ fn help_lines(
         crate::input::keybind_help_groups(&keybinds.keybinds, &keybinds.prefix),
         query,
     );
-    let key_width = groups
-        .iter()
-        .flat_map(|(_, entries)| entries.iter().map(|(key, _)| key.chars().count()))
+    // Size the key column only from rows that fit on one line, so one
+    // oversized shortcut or label wraps its own row instead of every row.
+    let fitting_rows = || {
+        groups
+            .iter()
+            .flat_map(|(_, entries)| entries.iter())
+            .map(|(key, label)| (key.chars().count(), label.chars().count()))
+            .filter(|(key, label)| key + label + 2 <= text_width)
+    };
+    let label_width = fitting_rows().map(|(_, label)| label).max().unwrap_or(0);
+    let key_limit = text_width.saturating_sub(label_width + 2);
+    let key_width = fitting_rows()
+        .map(|(key, _)| key)
+        .filter(|key| *key <= key_limit)
         .max()
         .unwrap_or(8);
     if groups.is_empty() {
@@ -1179,7 +1191,7 @@ fn render_help_overlay(
     };
 
     let body = Rect::new(i.x, i.y + 3, i.width, i.height.saturating_sub(5));
-    let lines = help_lines(k, &h.query, p);
+    let lines = help_lines(k, &h.query, p, usize::from(body.width.saturating_sub(1)));
     let viewport_rows = usize::from(body.height.max(1));
     let wrapped_rows = |width: u16| {
         let width = usize::from(width.max(1));
