@@ -929,6 +929,42 @@ fn help_overlay_restores_released_search_scroll_and_custom_binding_behavior() {
 }
 
 #[test]
+fn help_overlay_wraps_only_the_row_of_a_shortcut_wider_than_the_panel() {
+    let config: Config = toml::from_str(
+        "[keys]\nresize_mode = [\"prefix+ctrl+left\", \"prefix+ctrl+down\", \"prefix+ctrl+up\", \"prefix+ctrl+right\"]\n",
+    )
+    .unwrap();
+    assert!(config.collect_diagnostics().is_empty());
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    let mut open = ClientShellInput::default();
+    state.record_binding(
+        crate::input::KeybindMatch::Action(crate::input::KeybindAction::Help),
+        &mut open,
+    );
+    let frame = state.compose(106, 30).expect("help overlay");
+    let rows = frame
+        .cells
+        .chunks(frame.width as usize)
+        .map(|row| {
+            row.iter()
+                .map(|cell| cell.symbol.as_str())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>();
+
+    for (key, label) in [("ctrl+b", "prefix mode"), ("prefix+q", "detach")] {
+        assert!(
+            rows.iter()
+                .any(|row| row.contains(key) && row.contains(label)),
+            "{key} and {label} should share a row:\n{}",
+            rows.join("\n")
+        );
+    }
+}
+
+#[test]
 fn resize_mode_reuses_endpoint_resize_and_stays_active_until_done() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));
