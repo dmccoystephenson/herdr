@@ -1401,7 +1401,7 @@ impl TerminalState {
                 | ("herdr:hermes", "hermes", Some("startup" | "new" | "resume"))
                 | ("herdr:opencode", "opencode", Some("select"))
                 | ("herdr:pi", "pi", Some("new" | "resume" | "fork"))
-                | ("herdr:grok", "grok", Some("new"))
+                | ("herdr:grok", "grok", Some("new" | "load"))
                 | (
                     "herdr:omp",
                     "omp",
@@ -4955,6 +4955,42 @@ mod tests {
 
     #[test]
     fn grok_new_session_ref_replaces_existing_session_ref() {
+        for session_start_source in ["new", "load"] {
+            let mut terminal = test_terminal();
+            terminal
+                .set_agent_session_ref(
+                    "herdr:grok".into(),
+                    "grok".into(),
+                    crate::agent_resume::AgentSessionRef::id("grok-old"),
+                    Some(20),
+                )
+                .expect("initial session should be accepted");
+
+            let mutation = terminal
+                .set_agent_session_ref_for_session_start(
+                    "herdr:grok".into(),
+                    "grok".into(),
+                    crate::agent_resume::AgentSessionRef::id("grok-new"),
+                    Some(21),
+                    Some(session_start_source.into()),
+                )
+                .unwrap_or_else(|| {
+                    panic!("{session_start_source} should replace the grok session")
+                });
+
+            assert!(mutation.session_ref_changed);
+            assert_eq!(
+                terminal
+                    .persisted_agent_session
+                    .as_ref()
+                    .map(|session| session.session_ref.value.as_str()),
+                Some("grok-new")
+            );
+        }
+    }
+
+    #[test]
+    fn grok_resume_does_not_replace_existing_session_ref() {
         let mut terminal = test_terminal();
         terminal
             .set_agent_session_ref(
@@ -4965,23 +5001,21 @@ mod tests {
             )
             .expect("initial session should be accepted");
 
-        let mutation = terminal
-            .set_agent_session_ref_for_session_start(
-                "herdr:grok".into(),
-                "grok".into(),
-                crate::agent_resume::AgentSessionRef::id("grok-new"),
-                Some(21),
-                Some("new".into()),
-            )
-            .expect("new should replace the grok session");
+        let mutation = terminal.set_agent_session_ref_for_session_start(
+            "herdr:grok".into(),
+            "grok".into(),
+            crate::agent_resume::AgentSessionRef::id("grok-resumed"),
+            Some(21),
+            Some("resume".into()),
+        );
 
-        assert!(mutation.session_ref_changed);
+        assert!(mutation.is_none());
         assert_eq!(
             terminal
                 .persisted_agent_session
                 .as_ref()
                 .map(|session| session.session_ref.value.as_str()),
-            Some("grok-new")
+            Some("grok-old")
         );
     }
 
