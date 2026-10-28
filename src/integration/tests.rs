@@ -1561,7 +1561,11 @@ fn install_codex_only_migrates_top_level_feature_flags() {
 
 fn assert_codex_hooks_enabled(config: &str) {
     let parsed: toml::Value = toml::from_str(config).expect("codex config stays valid TOML");
-    assert_eq!(parsed["features"]["hooks"].as_bool(), Some(true), "{config}");
+    assert_eq!(
+        parsed["features"]["hooks"].as_bool(),
+        Some(true),
+        "{config}"
+    );
 }
 
 #[test]
