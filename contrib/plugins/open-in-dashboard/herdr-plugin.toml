@@ -1,0 +1,12 @@
+id = "contrib.open-in-dashboard"
+name = "Open in dashboard"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Open the focused pane in a local session dashboard"
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "open"
+title = "Open pane in dashboard"
+contexts = ["pane"]
+command = ["sh", "open.sh"]
