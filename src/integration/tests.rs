@@ -1559,6 +1559,57 @@ fn install_codex_only_migrates_top_level_feature_flags() {
     let _ = fs::remove_dir_all(base);
 }
 
+fn assert_codex_hooks_enabled(config: &str) {
+    let parsed: toml::Value = toml::from_str(config).expect("codex config stays valid TOML");
+    assert_eq!(
+        parsed["features"]["hooks"].as_bool(),
+        Some(true),
+        "{config}"
+    );
+}
+
+#[test]
+fn codex_feature_flag_merges_into_quoted_features_header() {
+    for header in ["[\"features\"]", "['features']", "[ features ]"] {
+        let content = format!(
+            "\"model\" = \"x\"\n\n{header}\n\n[\"tui\"]\n\"status_line_use_colors\" = true\n"
+        );
+
+        let config = build_codex_config_with_hooks(&content);
+
+        assert_codex_hooks_enabled(&config);
+        assert_eq!(config.matches("features").count(), 1, "{config}");
+    }
+}
+
+#[test]
+fn codex_feature_flag_rewrites_quoted_hooks_key_in_place() {
+    for key in ["\"hooks\"", "'hooks'"] {
+        let content = format!("[features]\n{key} = false\nother = true\n");
+
+        let config = build_codex_config_with_hooks(&content);
+
+        assert_codex_hooks_enabled(&config);
+        assert_eq!(config, "[features]\nhooks = true\nother = true\n");
+    }
+}
+
+#[test]
+fn codex_feature_flag_removes_quoted_deprecated_key() {
+    let config = build_codex_config_with_hooks("[\"features\"]\n\"codex_hooks\" = true\n");
+
+    assert_codex_hooks_enabled(&config);
+    assert!(!config.contains("codex_hooks"), "{config}");
+}
+
+#[test]
+fn codex_feature_flag_ignores_quoted_dotted_tables() {
+    let config = build_codex_config_with_hooks("[\"profiles.features\"]\nhooks = false\n");
+
+    assert_codex_hooks_enabled(&config);
+    assert!(config.starts_with("[\"profiles.features\"]\nhooks = false\n"));
+}
+
 #[test]
 fn install_codex_removes_turn_status_hooks_from_previous_integration() {
     let _lock = integration_env_lock();
