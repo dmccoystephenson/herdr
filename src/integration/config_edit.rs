@@ -808,7 +808,7 @@ pub(crate) fn build_codex_config_with_hooks(content: &str) -> String {
 
     for (index, line) in lines.iter().enumerate() {
         if let Some(header) = toml_table_header(line) {
-            in_top_level_features = header == "[features]";
+            in_top_level_features = is_toml_table_named(header, "features");
             if in_top_level_features && features_header_index.is_none() {
                 features_header_index = Some(index);
             }
@@ -974,11 +974,32 @@ pub(crate) fn toml_table_header(line: &str) -> Option<&str> {
     Some(header)
 }
 
-pub(crate) fn is_toml_key(line: &str, key: &str) -> bool {
-    let trimmed = line.trim();
-    if trimmed.starts_with('#') || !trimmed.starts_with(key) {
+/// Whether a standard table header names the single top-level table `name`,
+/// written bare (`[name]`), quoted (`["name"]`, `['name']`), or padded.
+pub(crate) fn is_toml_table_named(header: &str, name: &str) -> bool {
+    if header.starts_with("[[") {
         return false;
     }
+    header
+        .strip_prefix('[')
+        .and_then(|header| header.strip_suffix(']'))
+        .is_some_and(|inner| toml_key_matches(inner.trim(), name))
+}
 
-    trimmed[key.len()..].trim_start().starts_with('=')
+/// Whether a line assigns the top-level key `key`, written bare or quoted.
+pub(crate) fn is_toml_key(line: &str, key: &str) -> bool {
+    let trimmed = line.trim();
+    !trimmed.starts_with('#')
+        && trimmed
+            .split_once('=')
+            .is_some_and(|(spelled, _)| toml_key_matches(spelled.trim_end(), key))
+}
+
+fn toml_key_matches(spelled: &str, key: &str) -> bool {
+    let unquoted = ['"', '\''].into_iter().find_map(|quote| {
+        spelled
+            .strip_prefix(quote)
+            .and_then(|spelled| spelled.strip_suffix(quote))
+    });
+    unquoted.unwrap_or(spelled) == key
 }
