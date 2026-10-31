@@ -1604,7 +1604,10 @@ fn install_codex_collapses_equivalent_unquoted_and_quoted_hook_entries() {
         .map(|hook| hook["command"].as_str().unwrap())
         .collect();
 
-    let expected = vec!["printf keep".to_string(), hook_command(&hook_path, Some("session"))];
+    let expected = vec![
+        "printf keep".to_string(),
+        hook_command(&hook_path, Some("session")),
+    ];
     assert_eq!(commands, expected);
 
     clear_integration_path_env();

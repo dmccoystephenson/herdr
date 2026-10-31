@@ -60,10 +60,7 @@ pub(crate) fn legacy_bash_hook_command(hook_path: &Path, action: Option<&str>) -
 /// The unquoted `bash <path> <action>` spelling of [`legacy_bash_hook_command`].
 /// Bash runs it identically only when the path needs no quoting, so paths with
 /// any other character yield `None` instead of a command that runs differently.
-pub(crate) fn unquoted_bash_hook_command(
-    hook_path: &Path,
-    action: Option<&str>,
-) -> Option<String> {
+pub(crate) fn unquoted_bash_hook_command(hook_path: &Path, action: Option<&str>) -> Option<String> {
     let path = hook_path.display().to_string();
     if path.is_empty() || !path.chars().all(is_shell_safe_path_char) {
         return None;
