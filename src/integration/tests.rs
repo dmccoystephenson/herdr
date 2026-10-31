@@ -1535,6 +1535,83 @@ fn install_codex_is_idempotent_for_hook_entries_and_feature_flag() {
 }
 
 #[test]
+fn unquoted_bash_hook_command_only_covers_paths_that_need_no_quoting() {
+    let plain = Path::new("/tmp/codex-home/herdr-agent-state.sh");
+    assert_eq!(
+        unquoted_bash_hook_command(plain, Some("session")).as_deref(),
+        Some("bash /tmp/codex-home/herdr-agent-state.sh session")
+    );
+    assert_eq!(
+        unquoted_bash_hook_command(plain, None).as_deref(),
+        Some("bash /tmp/codex-home/herdr-agent-state.sh")
+    );
+
+    for path in [
+        "/tmp/codex home/herdr-agent-state.sh",
+        "/tmp/$HOME/herdr-agent-state.sh",
+        "~/herdr-agent-state.sh",
+        "",
+    ] {
+        assert_eq!(
+            unquoted_bash_hook_command(Path::new(path), Some("session")),
+            None,
+            "{path:?} needs quoting"
+        );
+    }
+}
+
+// The unquoted spelling only exists for paths bash reads without quoting,
+// which Windows paths (backslashes, drive colons) never are.
+#[cfg(unix)]
+#[test]
+fn install_codex_collapses_equivalent_unquoted_and_quoted_hook_entries() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let codex_dir = base.join("codex-home");
+    fs::create_dir_all(&codex_dir).unwrap();
+    fs::write(codex_dir.join("config.toml"), "[features]\nhooks = true\n").unwrap();
+    let hook_path = codex_dir.join(CODEX_HOOK_INSTALL_NAME);
+    let hooks_json = json!({
+        "hooks": {
+            "SessionStart": [
+                {"hooks": [{"type": "command", "command": "printf keep", "timeout": 3}]},
+                {"hooks": [{
+                    "type": "command",
+                    "command": format!("bash {} session", hook_path.display()),
+                    "timeout": 10
+                }]},
+                {"hooks": [{
+                    "type": "command",
+                    "command": format!("bash '{}' session", hook_path.display()),
+                    "timeout": 10
+                }]}
+            ]
+        }
+    });
+    fs::write(codex_dir.join("hooks.json"), hooks_json.to_string()).unwrap();
+    std::env::set_var(CODEX_HOME_ENV_VAR, &codex_dir);
+
+    install_codex().unwrap();
+    install_codex().unwrap();
+
+    let hooks: Value =
+        serde_json::from_str(&fs::read_to_string(codex_dir.join("hooks.json")).unwrap()).unwrap();
+    let commands: Vec<&str> = hooks["hooks"]["SessionStart"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|group| group["hooks"].as_array().unwrap())
+        .map(|hook| hook["command"].as_str().unwrap())
+        .collect();
+
+    let expected = vec!["printf keep".to_string(), hook_command(&hook_path, Some("session"))];
+    assert_eq!(commands, expected);
+
+    clear_integration_path_env();
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
 fn install_codex_only_migrates_top_level_feature_flags() {
     let _lock = integration_env_lock();
     let base = unique_base();

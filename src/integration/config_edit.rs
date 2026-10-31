@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde_json::{json, Map, Value};
 
-use super::command::{hook_command, legacy_bash_hook_command};
+use super::command::{hook_command, legacy_bash_hook_command, unquoted_bash_hook_command};
 #[cfg(windows)]
 use super::file_ops::legacy_bash_hook_path;
 use super::{
@@ -368,6 +368,9 @@ pub(crate) fn remove_direct_hook_commands(
 pub(crate) fn hook_command_variants(hook_path: &Path, action: Option<&str>) -> Vec<String> {
     let mut commands = vec![hook_command(hook_path, action)];
     push_unique_command(&mut commands, legacy_bash_hook_command(hook_path, action));
+    if let Some(command) = unquoted_bash_hook_command(hook_path, action) {
+        push_unique_command(&mut commands, command);
+    }
 
     #[cfg(windows)]
     {
