@@ -56,10 +56,22 @@ fn server_reload_config(args: &[String]) -> std::io::Result<i32> {
         return Ok(2);
     }
 
-    super::print_response(&super::send_request(&Request {
+    let response = super::send_request(&Request {
         id: "cli:server:reload-config".into(),
         method: Method::ServerReloadConfig(EmptyParams::default()),
-    })?)
+    })?;
+    let exit_code = super::print_response(&response)?;
+    Ok(config_reload_exit_code(&response, exit_code))
+}
+
+/// A failed reload is a successful response whose server kept its previous
+/// config, so the status decides the exit code. `partial` was applied.
+fn config_reload_exit_code(response: &serde_json::Value, printed_exit_code: i32) -> i32 {
+    if response["result"]["status"] == "failed" {
+        1
+    } else {
+        printed_exit_code
+    }
 }
 
 fn server_agent_manifests(args: &[String]) -> std::io::Result<i32> {
@@ -270,6 +282,39 @@ fn print_server_help() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn config_reload_response(status: &str) -> serde_json::Value {
+        serde_json::json!({
+            "id": "cli:server:reload-config",
+            "result": { "type": "config_reload", "status": status, "diagnostics": [] }
+        })
+    }
+
+    #[test]
+    fn config_reload_exit_code_fails_only_for_failed_status() {
+        assert_eq!(
+            config_reload_exit_code(&config_reload_response("failed"), 0),
+            1
+        );
+        assert_eq!(
+            config_reload_exit_code(&config_reload_response("partial"), 0),
+            0
+        );
+        assert_eq!(
+            config_reload_exit_code(&config_reload_response("applied"), 0),
+            0
+        );
+    }
+
+    #[test]
+    fn config_reload_exit_code_keeps_error_response_exit_code() {
+        let response = serde_json::json!({
+            "id": "cli:server:reload-config",
+            "error": { "code": "internal_error", "message": "unavailable" }
+        });
+
+        assert_eq!(config_reload_exit_code(&response, 1), 1);
+    }
 
     #[test]
     fn update_agent_manifest_status_fetches_reloads_then_reads_status() {
