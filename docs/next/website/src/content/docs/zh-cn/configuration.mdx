@@ -50,6 +50,8 @@ herdr server reload-config
 
 重载会在不重启窗格的情况下应用大多数 UI 设置。仅启动时生效的设置仍需重启。
 
+该命令会输出 JSON 结果；当 `status` 为 `failed` 时（例如 `config.toml` 存在 TOML 错误）以 `1` 退出，服务器继续使用当前配置。`partial` 重载已被应用，因此以 `0` 退出。
+
 主题、侧边栏布局、复制行为等显示设置来自客户端的本地配置，查看 SSH 机器时也一样。窗格默认值、worktree、集成和自定义命令属于运行窗格的服务器。UI 中的 `reload config` 会同时重载客户端本地设置和选中服务器的配置，本地按键绑定也会更新；指定 `--remote-keybindings server` 时则使用选中服务器的按键绑定。
 
 ## 无客户端终端尺寸
