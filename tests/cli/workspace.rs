@@ -653,6 +653,37 @@ fn config_check_rejects_json_output() {
 }
 
 #[test]
+fn server_reload_config_exits_non_zero_when_reload_fails() {
+    let base = unique_test_dir();
+    let config_home = base.join("config");
+    let runtime_dir = base.join("runtime");
+    let socket_path = runtime_dir.join("herdr.sock");
+
+    let herdr = spawn_herdr(&config_home, &runtime_dir, &socket_path);
+    wait_for_socket(&socket_path, Duration::from_secs(5));
+
+    fs::write(
+        config_home.join(app_dir_name()).join("config.toml"),
+        "[keys\n",
+    )
+    .unwrap();
+
+    let reloaded = run_cli(&socket_path, &["server", "reload-config"]);
+
+    assert_eq!(
+        reloaded.status.code(),
+        Some(1),
+        "stdout: {}",
+        String::from_utf8_lossy(&reloaded.stdout)
+    );
+    let reload_json: serde_json::Value = serde_json::from_slice(&reloaded.stdout).unwrap();
+    assert_eq!(reload_json["result"]["type"], "config_reload");
+    assert_eq!(reload_json["result"]["status"], "failed");
+
+    cleanup_spawned_herdr(herdr, base);
+}
+
+#[test]
 fn worktree_cli_rejects_local_argument_errors_before_socket_use() {
     let base = unique_test_dir();
     fs::create_dir_all(&base).unwrap();
