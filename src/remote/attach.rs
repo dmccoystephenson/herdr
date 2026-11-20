@@ -1948,6 +1948,7 @@ fi
         r#"if [ -n "$home" ]; then
     emit "$home/.local/share/mise/installs/herdr/$version/bin/herdr"
     emit "$home/.local/share/mise/installs/herdr/$version/herdr"
+    emit "$home/.local/share/mise/installs/github-herdrdev-herdr/$version/herdr"
     emit "$home/.local/share/mise/installs/github-ogulcancelik-herdr/$version/herdr"
     emit "$home/.nix-profile/bin/herdr"
 fi
@@ -5665,6 +5666,9 @@ function Get-Process {
             script.contains("emit \"$home/.local/share/mise/installs/herdr/$version/bin/herdr\"")
         );
         assert!(script.contains("emit \"$home/.local/share/mise/installs/herdr/$version/herdr\""));
+        assert!(script.contains(
+            "emit \"$home/.local/share/mise/installs/github-herdrdev-herdr/$version/herdr\""
+        ));
         assert!(script.contains(
             "emit \"$home/.local/share/mise/installs/github-ogulcancelik-herdr/$version/herdr\""
         ));
